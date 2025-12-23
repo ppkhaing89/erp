@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'package:erp/model/countrymodel.dart';
+import 'package:erp/model/employeemodel.dart';
+import 'package:erp/model/global.dart' as globals;
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:erp/common/api.dart';
@@ -15,8 +18,9 @@ DateTime end = DateTime.now();
 DateTime start = DateTime.now();
 int selectedyear = DateTime.now().year;
 int selectedmonth = DateTime.now().month;
-List<String> countryList = [];
-String selectedCountry = '';
+List<CountryModel> countryList = [];
+bool isLoadingCountry = false;
+int? selectedEventType;
 final List<String> monthAbbreviations = [
   'Jan',
   'Feb',
@@ -31,6 +35,14 @@ final List<String> monthAbbreviations = [
   'Nov',
   'Dec'
 ];
+final Map<int, String> eventTypeMap = {
+  1: 'Attendance',
+  2: 'Leave',
+  3: 'Holiday',
+  4: 'Business Trip',
+  5: 'Time Off',
+  6: 'WFH',
+};
 void main() {
   runApp(const Calendar());
 }
@@ -70,6 +82,19 @@ class _CalendarState extends State<Calendar> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime(selectedyear, selectedmonth, 1);
   DateTime? _selectedDay;
+  List<EmployeeModel> employeeList = [];
+  EmployeeModel? selectedEmployee;
+  CountryModel? selectedCountry;
+  bool isLoadingEmployee = false;
+
+  void _clearFilters(void Function(VoidCallback fn) setModalState) {
+    setModalState(() {
+      selectedCountry = null;
+      selectedEmployee = null;
+      selectedEventType = null;
+      employeeList.clear();
+    });
+  }
 
   void onTabTapped() {
     setState(() {
@@ -163,6 +188,7 @@ class _CalendarState extends State<Calendar> {
     _loadEventsForMonth(_focusedDay.year, _focusedDay.month);
     _selectedDay = _focusedDay;
     _selectedEvents = ValueNotifier(_getEventsForDay(_selectedDay!));
+    getCountryList();
   }
 
   List<Event> _getEventsForDay(DateTime day) {
@@ -189,327 +215,280 @@ class _CalendarState extends State<Calendar> {
   }
 
   void _loadEventsForMonth(int year, int month) async {
-    setState(() {
-      _getEvent(year, month);
-    });
+    _getEvent(year, month);
   }
 
-//   void _showFilterDialog(BuildContext context) {
-//   String selectedName = '';
-//   int selectedMonth = selectedmonth;
-//   int selectedYear = selectedyear;
-//   String selectedCountry = '';
-//   String selectedEventType = '';
+  Future<void> getCountryList() async {
+    setState(() => isLoadingCountry = true);
 
-//   showDialog(
-//     context: context,
-//     builder: (context) {
-//       return AlertDialog(
-//         title: const Text('Filter Events'),
-//         content: SingleChildScrollView(
-//           child: Column(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               // Name Input
-//               TextField(
-//                 decoration: const InputDecoration(labelText: 'Name'),
-//                 onChanged: (val) {
-//                   selectedName = val;
-//                 },
-//               ),
-//               const SizedBox(height: 8),
-              
-//               // Month-Year Picker
-//               InkWell(
-//                 onTap: () {
-//                   DatePicker.showDatePicker(
-//                     context,
-//                     pickerTheme: const DateTimePickerTheme(
-//                       showTitle: true,
-//                       confirm: Text('Done', style: TextStyle(color: Colors.blue)),
-//                       cancel: Text('Cancel', style: TextStyle(color: Colors.red)),
-//                     ),
-//                     minDateTime: DateTime(2000),
-//                     maxDateTime: DateTime(2100),
-//                     initialDateTime: DateTime(selectedYear, selectedMonth),
-//                     dateFormat: 'MMM yyyy',
-//                     locale: DateTimePickerLocale.en_us,
-//                     onConfirm: (dateTime, List<int> index) {
-//                       setState(() {
-//                         selectedYear = dateTime.year;
-//                         selectedMonth = dateTime.month;
-//                       });
-//                     },
-//                   );
-//                 },
-//                 child: Container(
-//                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-//                   decoration: BoxDecoration(
-//                       border: Border.all(color: Colors.grey),
-//                       borderRadius: BorderRadius.circular(6)),
-//                   child: Text("${monthAbbreviations[selectedMonth - 1]} $selectedYear"),
-//                 ),
-//               ),
-//               const SizedBox(height: 8),
+    var obj = <String, String>{
+      'UserCD': globals.userCD,
+      'SystemCD': 'HR',
+    };
 
-//               // Country Input
-//               TextField(
-//                 decoration: const InputDecoration(labelText: 'Country'),
-//                 onChanged: (val) {
-//                   selectedCountry = val;
-//                 },
-//               ),
-//               const SizedBox(height: 8),
+    String res = await api.apiCall('CountryApi/GetCountry', obj);
+    dynamic jsonData = jsonDecode(jsonDecode(res));
 
-//               // Event Type Dropdown
-//               DropdownButtonFormField<String>(
-//                 decoration: const InputDecoration(labelText: 'Event Type'),
-//                 items: ['A', 'L', 'H', 'T', 'W', 'B']
-//                     .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-//                     .toList(),
-//                 onChanged: (val) {
-//                   selectedEventType = val ?? '';
-//                 },
-//               ),
-//             ],
-//           ),
-//         ),
-//         actions: [
-//           TextButton(
-//             onPressed: () => Navigator.pop(context),
-//             child: const Text('Cancel', style: TextStyle(color: Colors.red)),
-//           ),
-//           ElevatedButton(
-//             onPressed: () {
-//               Navigator.pop(context);
-//               // Apply filters
-//               _applyFilters(
-//                 name: selectedName,
-//                 month: selectedMonth,
-//                 year: selectedYear,
-//                 country: selectedCountry,
-//                 eventType: selectedEventType,
-//               );
-//             },
-//             child: const Text('Apply'),
-//           ),
-//         ],
-//       );
-//     },
-//   );
-// }
+    if (jsonData is List) {
+      setState(() {
+        countryList = jsonData.map((e) => CountryModel.fromJson(e)).toList();
+        _events = _buildEvents();
+      });
+    }
 
+    setState(() => isLoadingCountry = false);
+  }
 
+  Future<List<EmployeeModel>> getEmployeeByCountry(String countryCode) async {
+    var obj = {'CountryCD': countryCode};
 
-// Future<void> _loadCountries() async {
-//   try {
-//     String res = await api.apiCall('YourApi/GetCountries', {});
-//     dynamic jsonData = jsonDecode(jsonDecode(res));
+    String res = await api.apiCall('EmployeeApi/GetUserProfile', obj);
+    dynamic jsonData = jsonDecode(jsonDecode(res));
 
-//     if (jsonData is List) {
-//       setState(() {
-//         countryList = jsonData.map<String>((item) => item['CountryName'].toString()).toList();
-//       });
-//     }
-//   } catch (e) {
-//     print("Error loading countries: $e");
-//   }
-// }
+    if (jsonData is List) {
+      return jsonData
+          .map<EmployeeModel>((e) => EmployeeModel.fromJson(e))
+          .toList();
+    }
+    return [];
+  }
 
+  void _showFilterDialog(BuildContext context) {
+    int selectedMonth = selectedmonth;
+    int selectedYear = selectedyear;
+    int? selectedEventTypeLocal = selectedEventType;
 
-
-void _showFilterDialog(BuildContext context) {
-  String selectedName = '';
-  int selectedMonth = selectedmonth;
-  int selectedYear = selectedyear;
-  String selectedCountry = '';
-  String selectedEventType = '';
-
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (context) {
-      return Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 16,
-          right: 16,
-          top: 16,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 50,
-                  height: 5,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        return StatefulBuilder(builder: (context, setModalState) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<CountryModel>(
+                  initialValue: selectedCountry,
+                  decoration: const InputDecoration(
+                    labelText: 'Country',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.flag),
                   ),
-                ),
-              ),
-              const Text(
-                'Filter Events',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20), 
+                  items: countryList.map((c) {
+                    return DropdownMenuItem(
+                      value: c,
+                      child: Text(c.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    setModalState(() {
+                      selectedCountry = value;
+                      employeeList.clear();
+                      selectedEmployee = null;
+                      isLoadingEmployee = true;
+                    });
 
-              // Country Field
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Country',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.flag),
-                ),
-                onChanged: (val) => selectedCountry = val,
-              ),
-              const SizedBox(height: 16),
+                    final employees = await getEmployeeByCountry(value.code);
 
-              // Name Field
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
+                    setModalState(() {
+                      employeeList = employees;
+                      isLoadingEmployee = false;
+                    });
+                  },
                 ),
-                onChanged: (val) => selectedName = val,
-              ),
-              const SizedBox(height: 16),
 
-              // Month-Year Picker
-              InkWell(
-                onTap: () {
-                  DatePicker.showDatePicker(
-                    context,
-                    pickerTheme: const DateTimePickerTheme(
-                      showTitle: true,
-                      confirm: Text('Done', style: TextStyle(color: Colors.blue)),
-                      cancel: Text('Cancel', style: TextStyle(color: Colors.red)),
-                    ),
-                    minDateTime: DateTime(2000),
-                    maxDateTime: DateTime(2100),
-                    initialDateTime: DateTime(selectedYear, selectedMonth),
-                    dateFormat: 'MMM yyyy',
-                    locale: DateTimePickerLocale.en_us,
-                    onConfirm: (dateTime, List<int> index) {
-                      setState(() {
-                        selectedYear = dateTime.year;
-                        selectedMonth = dateTime.month;
-                      });
-                    },
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade400),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "${monthAbbreviations[selectedMonth - 1]} $selectedYear",
-                        style: const TextStyle(fontSize: 16),
+                const SizedBox(height: 16),
+
+                /// 👤 EMPLOYEE DROPDOWN
+                isLoadingEmployee
+                    ? const CircularProgressIndicator()
+                    : DropdownButtonFormField<EmployeeModel>(
+                        initialValue: selectedEmployee,
+                        decoration: const InputDecoration(
+                          labelText: 'Employee',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.person),
+                        ),
+                        items: employeeList.map((e) {
+                          return DropdownMenuItem(
+                            value: e,
+                            child: Text(e.empName),
+                          );
+                        }).toList(),
+                        onChanged: employeeList.isEmpty
+                            ? null
+                            : (val) {
+                                setModalState(() {
+                                  selectedEmployee = val;
+                                });
+                              },
                       ),
-                      const Icon(Icons.calendar_today, color: Colors.blue),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
 
+                const SizedBox(height: 16),
 
-              // Event Type Dropdown
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Event Type',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.event),
-                ),
-                items: ['A', 'L', 'H', 'T', 'W', 'B']
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (val) => selectedEventType = val ?? '',
-              ),
-              const SizedBox(height: 24),
-
-              // Action Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _applyFilters(
-                          name: selectedName,
-                          month: selectedMonth,
-                          year: selectedYear,
-                          country: selectedCountry,
-                          eventType: selectedEventType,
-                        );
+                // Month-Year Picker
+                InkWell(
+                  onTap: () {
+                    DatePicker.showDatePicker(
+                      context,
+                      pickerTheme: const DateTimePickerTheme(
+                        showTitle: true,
+                        confirm:
+                            Text('Done', style: TextStyle(color: Colors.blue)),
+                        cancel:
+                            Text('Cancel', style: TextStyle(color: Colors.red)),
+                      ),
+                      minDateTime: DateTime(2000),
+                      maxDateTime: DateTime(2100),
+                      initialDateTime: DateTime(selectedYear, selectedMonth),
+                      dateFormat: 'MMM yyyy',
+                      locale: DateTimePickerLocale.en_us,
+                      onConfirm: (dateTime, List<int> index) {
+                        setState(() {
+                          selectedYear = dateTime.year;
+                          selectedMonth = dateTime.month;
+                        });
                       },
-                      child: const Text('Apply'),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color.fromARGB(255, 124, 124, 124)),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "${monthAbbreviations[selectedMonth - 1]} $selectedYear",
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        const Icon(Icons.calendar_today, color: Colors.blue),
+                      ],
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
+                ),
+                const SizedBox(height: 16),
 
+                // Event Type Dropdown
+                DropdownButtonFormField<int>(
+                  initialValue: selectedEventTypeLocal,
+                  decoration: const InputDecoration(
+                    labelText: 'Event Type',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.event),
+                  ),
+                  items: eventTypeMap.entries.map((entry) {
+                    return DropdownMenuItem<int>(
+                      value: entry.key, // ✅ numeric value
+                      child: Text(entry.value), // ✅ display text
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      selectedEventTypeLocal =
+                          val; // store selected numeric value locally
+                    });
+                  },
+                  hint: const Text('Select Event Type'),
+                ),
 
-Future<void> _applyFilters({
-  required String name,
-  required int month,
-  required int year,
-  required String country,
-  required String eventType,
-}) async {
-  _focusedDay = DateTime(year, month, 1);
-  _selectedDay = _focusedDay;
+                const SizedBox(height: 24),
 
-  var obj = <String, String>{
-    'Year': year.toString(),
-    'Month': month.toString(),
-    'Name': name,
-    'Country': country,
-    'Type': eventType,
-  };
+                // Action Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.clear),
+                        label: const Text('Clear Filters'),
+                        onPressed: () {
+                          _clearFilters(setModalState);
+                          Navigator.pop(context);
+                          _applyFilters(
+                            name: '',
+                            month: _focusedDay.month,
+                            year: _focusedDay.year,
+                            country: '',
+                            eventType: '',
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.check),
+                        label: const Text('Apply'),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          setState(() {
+                            selectedEventType = selectedEventTypeLocal;
+                          });
+                          _applyFilters(
+                            name: selectedEmployee?.empId ?? '',
+                            month: selectedMonth,
+                            year: selectedYear,
+                            country: selectedCountry?.code ?? '',
+                            eventType: selectedEventTypeLocal?.toString() ?? '',
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
 
-  String res = await api.apiCall('CalendarApi/CalendarEventSelect', obj);
-  dynamic jsonData = jsonDecode(jsonDecode(res));
-
-  if (jsonData is List) {
-    setState(() {
-      dataList = jsonData.map((item) => CalendarEvent.fromJson(item)).toList();
-      _events = _buildEvents();
-      _selectedEvents.value = _getEventsForDay(_selectedDay!);
-    });
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        });
+      },
+    );
   }
-}
 
+  Future<void> _applyFilters({
+    required String name,
+    required int month,
+    required int year,
+    required String country,
+    required String eventType,
+  }) async {
+    _focusedDay = DateTime(year, month, 1);
+    _selectedDay = _focusedDay;
 
+    if (eventType.isEmpty) {
+      eventType = '1,2,3,4,5,6';
+    }
+
+    var obj = <String, String>{
+      'Year': year.toString(),
+      'Month': month.toString(),
+      'UserCD': name,
+      'CountryCD': country,
+      'Type': eventType,
+    };
+
+    String res = await api.apiCall('CalendarApi/CalendarEventSelect', obj);
+    dynamic jsonData = jsonDecode(jsonDecode(res));
+
+    if (jsonData is List) {
+      setState(() {
+        dataList =
+            jsonData.map((item) => CalendarEvent.fromJson(item)).toList();
+        _events = _buildEvents();
+        _selectedEvents.value = _getEventsForDay(_selectedDay!);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -521,89 +500,82 @@ Future<void> _applyFilters({
         children: [
           InkWell(
             onTap: () => _showFilterDialog(context),
-            // showMonthYearPicker(context),
-            // child: Container(
-            //   decoration: BoxDecoration(
-            //     color: Colors.white, // make selector stand out
-            //     borderRadius: BorderRadius.circular(8),
-            //   ),
-            //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            //   child: Row(
-            //     children: [
-            //       const Icon(Icons.calendar_today, color: Colors.blue),
-            //       const SizedBox(width: 8),
-            //       Text(
-            //         "${monthAbbreviations[selectedmonth - 1]} $selectedyear",
-            //         style: const TextStyle(
-            //           fontSize: 16,
-            //           fontWeight: FontWeight.bold,
-            //           color: Colors.black87,
-            //         ),
-            //       ),
-            //       const Spacer(),
-            //       const Icon(Icons.arrow_drop_down, color: Colors.black54),
-            //     ],
-            //   ),
-            // ),
             child: Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    child: const Row(
-      children:   [
-        Icon(Icons.filter_list, color: Colors.blue),
-        SizedBox(width: 8),
-        Text(
-          "Filter Events",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ],
-    ),
-  ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: const Row(
+                children: [
+                  Icon(Icons.filter_list, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text(
+                    "Filter Events",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
           ),
-             const Padding(
-      padding: EdgeInsets.only(top: 10), // ← SPACE
-    ),
-
-          TableCalendar<Event>(
-            firstDay: DateTime.utc(2019, 1, 1),
-            lastDay: DateTime.utc(2030, 12, 31),
-            focusedDay: _focusedDay, 
-             onPageChanged: (focusedDay) {
-              setState(() {
-                _focusedDay = focusedDay;  
-              });  
-              _loadEventsForMonth(focusedDay.year, focusedDay.month);
-            },
-            selectedDayPredicate: (day) {
-              return isSameDay(_selectedDay, day);
-            },
-            calendarFormat: _calendarFormat,
-            eventLoader: _getEventsForDay,
-            onDaySelected: (selectedDay, focusedDay) {
-              setState(() {
-                _selectedDay = selectedDay;
-                _focusedDay = focusedDay;
-              });
-              _selectedEvents.value = _getEventsForDay(selectedDay);
-            },
-            onFormatChanged: (format) {
-              setState(() {
-                _calendarFormat = format;
-              });
-            },
-            calendarBuilders: CalendarBuilders(
-              markerBuilder: (context, day, events) {
-                if (events.isNotEmpty) {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: events.map((event) => Container()).toList(),
-                  );
-                }
-                return const SizedBox();
+          Container(
+            color: Colors.white,
+            child: TableCalendar<Event>(
+              firstDay: DateTime.utc(2019, 1, 1),
+              lastDay: DateTime.utc(2030, 12, 31),
+              focusedDay: _focusedDay,
+              selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+              onDaySelected: (selectedDay, focusedDay) {
+                setState(() {
+                  _selectedDay = selectedDay;
+                  _focusedDay = focusedDay;
+                });
+                _selectedEvents.value = _getEventsForDay(selectedDay);
               },
+              onPageChanged: (focusedDay) {
+                _focusedDay = focusedDay;
+                _loadEventsForMonth(focusedDay.year, focusedDay.month);
+              },
+              calendarFormat: _calendarFormat,
+              onFormatChanged: (format) {
+                setState(() => _calendarFormat = format);
+              },
+              eventLoader: _getEventsForDay,
+              headerStyle: const HeaderStyle(
+                titleCentered: true,
+                formatButtonVisible: false,
+              ),
+              calendarStyle: const CalendarStyle(
+                todayDecoration: BoxDecoration(
+                  color: Colors.orange,
+                  shape: BoxShape.circle,
+                ),
+                selectedDecoration: BoxDecoration(
+                  color: Colors.blue,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              calendarBuilders: CalendarBuilders(
+                markerBuilder: (context, day, events) {
+                  if (events.isEmpty) return const SizedBox();
+                  return Positioned(
+                    bottom: 4,
+                    child: Row(
+                      children: events.take(3).map((e) {
+                        return Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.symmetric(horizontal: 1),
+                          decoration: BoxDecoration(
+                            color: _getEventColor(e.type),
+                            shape: BoxShape.circle,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
           const SizedBox(height: 8.0),
@@ -620,6 +592,7 @@ Future<void> _applyFilters({
                   itemBuilder: (context, index) {
                     final event = value[index];
                     return Card(
+                      color: Colors.white,
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: _getEventColor(event.type),
@@ -628,7 +601,6 @@ Future<void> _applyFilters({
                         ),
                         title: Text(event.title),
                         subtitle: Text(event.description),
-                        //trailing: Text(event.type),
                       ),
                     );
                   },

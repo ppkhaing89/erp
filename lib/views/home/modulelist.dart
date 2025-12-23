@@ -177,72 +177,65 @@ class _ModuleListState extends State<ModuleList> {
                         Center(
                           child: Padding(
                             padding: const EdgeInsets.all(10),
-                            child: SizedBox(
-                              child: GridView.builder(
-                                padding: const EdgeInsets.only(top: 20),
-                                itemCount: dataList.length,
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  childAspectRatio: 1.1,
-                                  mainAxisSpacing: 3,
-                                  crossAxisSpacing: 3,
-                                ),
-                                itemBuilder: (context, index) {
-                                  final isHovered = hoveredIndex == index;
-                                  List.filled(dataList.length, false);
-                                  return CupertinoButton(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    onPressed: () {
-                                      menuClick(dataList[index].systemCD);
-                                    },
-                                    child: Card(
-                                      color: const Color.fromARGB(
-                                          255, 255, 255, 255),
-                                      shadowColor: Colors.black54,
-                                      elevation: 7,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: <Widget>[
-                                          Image.asset(
-                                            'assets/images/${dataList[index].mobileIcon}',
-                                            width: 100,
-                                            height: 50,
-                                          ),
-                                          MouseRegion(
-                                            onEnter: (_) {
-                                              setState(() {
-                                                hoveredIndex = index;
-                                              });
-                                            },
-                                            onExit: (_) {
-                                              setState(() {
-                                                hoveredIndex = null;
-                                              });
-                                            },
-                                            child: Text(
-                                              dataList[index].systemCD,
-                                              style: TextStyle(
-                                                color: isHovered
-                                                    ? Colors.blue
-                                                    : Colors.black,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                            child: GridView.builder(
+                              padding: const EdgeInsets.only(top: 20),
+                              itemCount: dataList.length,
+                              shrinkWrap: true, // keep this
+                              physics: const ClampingScrollPhysics(), // ✅ FIX
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                childAspectRatio: 1.1,
+                                mainAxisSpacing: 3,
+                                crossAxisSpacing: 3,
+                              ),
+                              itemBuilder: (context, index) {
+                                final isHovered = hoveredIndex == index;
+
+                                return CupertinoButton(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  onPressed: () {
+                                    menuClick(dataList[index].systemCD);
+                                  },
+                                  child: Card(
+                                    color: Colors.white,
+                                    shadowColor: Colors.black54,
+                                    elevation: 7,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          'assets/images/${dataList[index].mobileIcon}',
+                                          width: 100,
+                                          height: 50,
+                                        ),
+                                        MouseRegion(
+                                          onEnter: (_) => setState(() {
+                                            hoveredIndex = index;
+                                          }),
+                                          onExit: (_) => setState(() {
+                                            hoveredIndex = null;
+                                          }),
+                                          child: Text(
+                                            dataList[index].systemCD,
+                                            style: TextStyle(
+                                              color: isHovered
+                                                  ? Colors.blue
+                                                  : Colors.black,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
-                                  );
-                                },
-                              ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ),

@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:erp/common/api.dart';
+import 'package:erp/common/function.dart' as function;
 import 'package:erp/common/message.dart';
 import 'package:erp/common/timeservice.dart';
 import 'package:erp/model/attendancemodel.dart';
+import 'package:erp/views/home/profile.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cupertino_date_picker_fork/flutter_cupertino_date_picker_fork.dart';
@@ -16,6 +18,9 @@ import 'package:erp/model/global.dart' as globals;
 import 'dart:io';
 import 'package:erp/common/function.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class Attendance extends StatefulWidget {
   const Attendance({super.key});
@@ -24,7 +29,7 @@ class Attendance extends StatefulWidget {
   State<Attendance> createState() => _AttendanceState();
 }
 
-String today = DateFormat('EEE d MMM yyyy').format(DateTime.now());
+String today = DateFormat('MMM d, yyyy - EEEE').format(DateTime.now());
 
 class _AttendanceState extends State<Attendance> {
   final ImagePicker _picker = ImagePicker();
@@ -75,6 +80,7 @@ class _AttendanceState extends State<Attendance> {
   ];
   final TextEditingController txtremark = TextEditingController();
   Image? imageWidget;
+  bool isMenu = false;
 
   @override
   void dispose() {
@@ -435,7 +441,9 @@ class _AttendanceState extends State<Attendance> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.blue : Colors.transparent,
+          color: isSelected
+              ? Colors.blue
+              : const Color.fromARGB(255, 255, 255, 255),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -497,14 +505,14 @@ class _AttendanceState extends State<Attendance> {
 
     if (!isClockedIn) {
       buttonText = 'Clock-in';
-      buttonColor = const Color.fromARGB(255, 8, 131, 13);
+      buttonColor = const Color.fromARGB(255, 1, 154, 6);
       onbuttonTap = () {
         msg.showConfirmDialog(
             context, 'Do you really want to proceed?', clockInClick);
       };
     } else if (isClockedIn && !isClockedOut) {
       buttonText = 'Clock-out';
-      buttonColor = const Color.fromARGB(255, 239, 90, 110);
+      buttonColor = const Color.fromARGB(255, 244, 8, 40);
       onbuttonTap = () {
         msg.showConfirmDialog(
             context, 'Do you really want to proceed?', clockOutClick);
@@ -515,36 +523,224 @@ class _AttendanceState extends State<Attendance> {
       onbuttonTap = () {};
     }
 
+    bool isImageFile() {
+      return ['png', 'jpg', 'jpeg'].contains(_fileExt.toLowerCase());
+    }
+
     void viewFile() {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text("View File: $_fileName"),
-          content: _fileExt == 'png' || _fileExt == 'jpg' || _fileExt == 'jpeg'
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 10),
-                    if (_fileExt == 'png' ||
-                        _fileExt == 'jpg' ||
-                        _fileExt == 'jpeg')
-                      CupertinoApp(
-                        home: CupertinoPageScaffold(
-                          child: SizedBox(
-                            child: imageWidget ?? Image.file(File(_filePath)),
-                          ),
-                        ),
-                      )
-                  ],
-                )
-              : const Text("Cannot preview this file type."),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
+        barrierDismissible: true,
+        builder: (_) => Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight:
+                  MediaQuery.of(context).size.height * 0.7, // max 70% of screen
             ),
-          ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 🔷 Header
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: const BoxDecoration(
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(16)),
+                    color: Colors.blue,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.image, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _fileName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 🔷 Content
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: isImageFile()
+                        ? InteractiveViewer(
+                            child: imageWidget ??
+                                Image.file(
+                                  File(_filePath),
+                                  fit: BoxFit.contain,
+                                ),
+                          )
+                        : const Center(
+                            child: Text(
+                              'Preview not available',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
+      );
+    }
+
+    Widget optionTile({
+      required IconData icon,
+      required String text,
+      required Color color,
+      required VoidCallback onTap,
+    }) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(width: 16),
+              Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Future<void> downloadFile(
+      BuildContext context,
+      String fileName,
+      String filePath,
+    ) async {
+      try {
+        // 🔐 Request permission (Android only)
+        if (Platform.isAndroid) {
+          var status = await Permission.storage.request();
+          if (!status.isGranted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Storage permission denied'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+        }
+
+        // 📂 Get directory
+        Directory directory;
+        if (Platform.isAndroid) {
+          directory = (await getExternalStorageDirectory())!;
+        } else {
+          directory = await getApplicationDocumentsDirectory();
+        }
+
+        final savePath = '${directory.path}/$fileName';
+
+        // ⬇ Download
+        await Dio().download(
+          filePath,
+          savePath,
+          onReceiveProgress: (received, total) {
+            if (total != -1) {
+              final progress = (received / total * 100).toStringAsFixed(0);
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Downloading... $progress%'),
+                  duration: const Duration(milliseconds: 500),
+                ),
+              );
+            }
+          },
+        );
+
+        // ✅ Success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('File downloaded to $savePath'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } catch (e) {
+        // ❌ Error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+
+    void showOptions(BuildContext context) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (context) {
+          return Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                optionTile(
+                  icon: Icons.remove_red_eye,
+                  text: 'View',
+                  color: Colors.blue,
+                  onTap: () {
+                    Navigator.pop(context);
+                    viewFile();
+                  },
+                ),
+                const Divider(height: 1),
+                optionTile(
+                  icon: Icons.download,
+                  text: 'Download',
+                  color: Colors.green,
+                  onTap: () {
+                    Navigator.pop(context);
+                    downloadFile(context, _fileName, _filePath);
+                  },
+                ),
+              ],
+            ),
+          );
+        },
       );
     }
 
@@ -552,6 +748,7 @@ class _AttendanceState extends State<Attendance> {
       return Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         elevation: 2,
+        color: Colors.white,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -562,15 +759,17 @@ class _AttendanceState extends State<Attendance> {
                 height: 60,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey[200],
+                  color: const Color.fromARGB(255, 232, 154, 10),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child:
                     _fileExt == 'png' || _fileExt == 'jpg' || _fileExt == 'jpeg'
-                        ? (imageWidget ??
-                            Image.file(File(_filePath), fit: BoxFit.cover))
-                        : const Icon(Icons.insert_drive_file,
-                            size: 35, color: Colors.grey),
+                        ? const Icon(Icons.file_present,
+                            size: 35, color: Colors.white)
+                        // (imageWidget ??
+                        //     Image.file(File(_filePath), fit: BoxFit.cover))
+                        : const Icon(Icons.file_open_rounded,
+                            size: 35, color: Colors.white),
               ),
 
               const SizedBox(width: 14),
@@ -586,11 +785,16 @@ class _AttendanceState extends State<Attendance> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-
-              // VIEW BUTTON
               IconButton(
-                icon: const Icon(Icons.remove_red_eye, color: Colors.blue),
-                onPressed: viewFile,
+                icon: Icon(
+                  isMenu ? Icons.more_vert : Icons.more_vert,
+                  color: Colors.black,
+                ),
+                onPressed: () {
+                  if (!isMenu) {
+                    showOptions(context);
+                  }
+                },
               ),
             ],
           ),
@@ -600,32 +804,79 @@ class _AttendanceState extends State<Attendance> {
 
     Widget locationTile({
       required String title,
-      required String checkInCoordinates, // "lat,lng"
-      required String checkOutCoordinates, // "lat,lng"
+      required String checkInCoordinates,
+      required String checkOutCoordinates,
     }) {
-      // Function to launch Google Maps with coordinates
       void openMap(String coordinates) async {
-        final url =
-            'https://www.google.com/maps/search/?api=1&query=$coordinates';
-        if (await canLaunchUrl(Uri.parse(url))) {
-          await launchUrl(Uri.parse(url));
-        } else {
-          throw 'Could not open the map.';
+        final uri = Uri.parse(
+          'https://www.google.com/maps/search/?api=1&query=$coordinates',
+        );
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
       }
 
+      Widget locationAction({
+        required IconData icon,
+        required String label,
+        required Color color,
+        required String coordinates,
+      }) {
+        return InkWell(
+          onTap: () => openMap(coordinates),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
       return Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
+        margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F9FC),
-          borderRadius: BorderRadius.circular(10),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.location_on, color: Colors.blue),
-            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child:
+                  const Icon(Icons.location_on, color: Colors.blue, size: 15),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -633,40 +884,32 @@ class _AttendanceState extends State<Attendance> {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => openMap(checkInCoordinates),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                const Color.fromARGB(255, 64, 61, 238),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Check-in Location'),
+                        child: locationAction(
+                          icon: Icons.login,
+                          label: 'View Check-in',
+                          color: Colors.blue,
+                          coordinates: checkInCoordinates,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => openMap(checkOutCoordinates),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                const Color.fromARGB(255, 225, 227, 50),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            foregroundColor: Colors.black,
-                          ),
-                          child: const Text('Check-out Location'),
+                        child: locationAction(
+                          icon: Icons.logout,
+                          label: 'View Check-out',
+                          color: Colors.orange,
+                          coordinates: checkOutCoordinates,
                         ),
                       ),
                     ],
-                  ),
+                  )
                 ],
               ),
             ),
@@ -686,13 +929,13 @@ class _AttendanceState extends State<Attendance> {
               Text("File Name: $_fileName"),
               const SizedBox(height: 10),
               if (_fileExt == 'png' || _fileExt == 'jpg' || _fileExt == 'jpeg')
-                CupertinoApp(
-                  home: CupertinoPageScaffold(
-                    child: SizedBox(
-                      child: Image.file(File(_filePath)),
-                    ),
+                SizedBox(
+                  width: double.infinity,
+                  child: Image.file(
+                    File(_filePath),
+                    fit: BoxFit.contain,
                   ),
-                ) // Sh
+                )
             ],
           ),
           actions: [
@@ -1073,10 +1316,8 @@ class _AttendanceState extends State<Attendance> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Row(
                               children: [
@@ -1084,16 +1325,61 @@ class _AttendanceState extends State<Attendance> {
                                   icon: const Icon(Icons.arrow_back,
                                       color: Colors.white),
                                   onPressed: () {
-                                    Navigator.pop(
-                                        context); // 🔹 Goes back to the previous screen
+                                    Navigator.pop(context); // 🔹 Goes back to the previous screen
                                   },
                                 ),
-                                const Icon(Icons.location_on,
-                                    color: Colors.white),
+                                const Icon(Icons.location_on,color: Colors.white),
+
                                 const SizedBox(width: 4),
-                                Text(locationMessage,
-                                    style:
-                                        const TextStyle(color: Colors.white)),
+
+                                Text(locationMessage,style:const TextStyle(color: Colors.white)),
+
+                                const SizedBox(width: 15),
+
+                                Align(
+                                  alignment: Alignment.bottomRight,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      Container(
+                                        width: 50, // Set width
+                                        height: 50, // Set height
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white, // ✅ Background circle color
+                                          shape: BoxShape.circle,
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              CupertinoPageRoute(
+                                                builder: (context) => const Profile(),
+                                              ),
+                                            );
+                                          },
+                                          child: !globals.userName.isNotEmpty
+                                              ? Text(
+                                                  function.getInitials(globals.userName),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                    color: Colors.black,
+                                                  ),
+                                                )
+                                              : ClipOval(
+                                                  child: Image.network(
+                                                    globals.profilephoto,
+                                                    width: 48,
+                                                    height: 48,
+                                                    fit: BoxFit.cover,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ],
@@ -1101,7 +1387,6 @@ class _AttendanceState extends State<Attendance> {
 
                         const SizedBox(height: 16),
 
-                        // 🔹 Workplace + Shift Info + Check In
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(15),
@@ -1112,13 +1397,12 @@ class _AttendanceState extends State<Attendance> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // 🔹 Workplace Row
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   buildOption("Home", Icons.home),
                                   const SizedBox(width: 8),
-                                  buildOption("Office", Icons.business),
+                                  buildOption("Office", Icons.apartment),
                                   const SizedBox(width: 8),
                                   buildOption("Onsite", Icons.location_on),
                                 ],
@@ -1126,21 +1410,19 @@ class _AttendanceState extends State<Attendance> {
 
                               const SizedBox(height: 12),
 
-                              // 🔹 Shift Info
                               Center(
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 4),
                                   decoration: BoxDecoration(
                                     color: const Color.fromARGB(
-                                        255, 104, 206, 246),
+                                        255, 161, 235, 189),
                                     borderRadius: BorderRadius.circular(5),
                                   ),
                                   child: Text(
                                     today,
-                                    //"GENERAL SHIFT",
                                     style: const TextStyle(
-                                      color: Color.fromARGB(255, 74, 79, 74),
+                                      color: Color.fromARGB(255, 2, 107, 2),
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -1149,7 +1431,6 @@ class _AttendanceState extends State<Attendance> {
 
                               const SizedBox(height: 20),
 
-                              // 🔹 Time + Check In Button
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -1182,7 +1463,7 @@ class _AttendanceState extends State<Attendance> {
                                           buttonText,
                                           style: const TextStyle(
                                             color: Colors.white,
-                                            fontSize: 14,
+                                            fontSize: 16,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -1211,7 +1492,7 @@ class _AttendanceState extends State<Attendance> {
                           ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 5),
 
                         Row(children: [
                           Expanded(
@@ -1226,97 +1507,144 @@ class _AttendanceState extends State<Attendance> {
                           ))
                         ]),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10),
 
-                        // 🔹 WFH Approval + Upload
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text(
                               "WFH Approval Document",
                               style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.bold),
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            ElevatedButton.icon(
-                              icon: const Icon(FontAwesomeIcons.upload,
-                                  color: Colors.white),
-                              label: const Text(
-                                'Upload File',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                              ),
-                              onPressed: (checkingtime == '--:--:--')
+                            InkWell(
+                              onTap: (checkingtime == '--:--:--')
                                   ? pickFile
                                   : null,
+                              borderRadius: BorderRadius.circular(25),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: (checkingtime == '--:--:--')
+                                      ? Colors.blue
+                                      : Colors.grey.shade300,
+                                  borderRadius: BorderRadius.circular(25),
+                                  boxShadow: (checkingtime == '--:--:--')
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.blue.withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 4),
+                                          )
+                                        ]
+                                      : [],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      FontAwesomeIcons.upload,
+                                      color: (checkingtime == '--:--:--')
+                                          ? Colors.white
+                                          : Colors.grey,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Upload File',
+                                      style: TextStyle(
+                                        color: (checkingtime == '--:--:--')
+                                            ? Colors.white
+                                            : Colors.grey,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
-
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 5),
 
                         buildFileView(),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 5),
 
-                        // 🔹 Attendance summary
+                        // 🔹 Attendance Summary Header
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text(
                               "Attendance for this Month",
                               style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.bold),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 30, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: const Color.fromARGB(255, 193, 216, 233),
-                                borderRadius: BorderRadius.circular(5),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.calendar_today,
-                                      color: Color.fromARGB(255, 75, 93, 107)),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    DateFormat('MMM').format(DateTime.now()),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                            ),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.calendar_today,
+                                      color: Colors.blue,
+                                      size: 18,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      DateFormat('MMM').format(DateTime.now()),
+                                      style: const TextStyle(
+                                        color: Colors.blue,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
                         ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
 
+                        // 🔹 Attendance Cards Row
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            AttendanceCard(
+                            Expanded(
+                              child: AttendanceCard(
                                 borderColor: Colors.green,
                                 title: "Present",
-                                value: present),
-                            AttendanceCard(
+                                value: present,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: AttendanceCard(
                                 borderColor: Colors.red,
                                 title: "Absents",
-                                value: absent),
-                            AttendanceCard(
+                                value: absent,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: AttendanceCard(
                                 borderColor: Colors.orange,
                                 title: "Holidays",
-                                value: holiday),
+                                value: holiday,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -1386,7 +1714,7 @@ class TimeInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const Icon(Icons.access_time, color: Colors.blue),
+        const Icon(Icons.access_alarm, color: Colors.blue),
         const SizedBox(height: 4),
         Text(time,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
@@ -1411,62 +1739,60 @@ class AttendanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black,
-              blurRadius: 1,
-              offset: Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 5,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: borderColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black,
+            blurRadius: 1,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            height: 5,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: borderColor,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
               ),
             ),
+          ),
 
-            // 🔹 Card content
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Column(
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: borderColor,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                    ),
+          // 🔹 Card content
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: borderColor,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value.toString().padLeft(2, '0'),
-                    style: TextStyle(
-                      color: borderColor,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value.toString().padLeft(2, '0'),
+                  style: TextStyle(
+                    color: borderColor,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

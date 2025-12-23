@@ -1,18 +1,18 @@
 class UserModel {
-  final String userCD;
-  final String name;
-  final String dOB;
-  final String countryCD;
-  final String countryName;
-  final String email;
-  final String officePh;
-  final String mobilePh;
-  final String jobTitle;
-  final String department;
-  final String manager;
-  final String joinedDate;
-  final String company;
-  final String profilephoto;
+  final String? userCD;
+  final String? name;
+  final String? dOB;
+  final String? countryCD;
+  final String? countryName;
+  final String? email;
+  final String? officePh;
+  final String? mobilePh;
+  final String? jobTitle;
+  final String? department;
+  final String? manager;
+  final String? joinedDate;
+  final String? company;
+  final String? profilephoto;
 
   UserModel({
     required this.userCD,
@@ -33,20 +33,20 @@ class UserModel {
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      userCD: json['UserCD'],
-      name: json['Name'],
-      dOB: json['DOB'],
-      countryCD: json['CountryCD'],
-      countryName: json['CountryName'],
-      email: json['Email'],
-      officePh: json['ExtensionNo_Display'],
-      mobilePh: json['PhoneNo_Display'],
-      jobTitle: json['JobTitleName'],
-      department: json['DepartmentName'],
-      manager: json['ManagerName'],
-      joinedDate: json['JoinedDate'],
-      company : json['ComName'],
-      profilephoto: json['ProfilePhoto'],
+      userCD: json['UserCD']?.toString(),
+      name: json['Name']?.toString(),
+      dOB: json['DOB']?.toString(),
+      countryCD: json['CountryCD']?.toString(),
+      countryName: json['CountryName']?.toString(),
+      email: json['Email']?.toString(),
+      officePh: json['ExtensionNo_Display']?.toString(),
+      mobilePh: json['PhoneNo_Display']?.toString(),
+      jobTitle: json['JobTitleName']?.toString(),
+      department: json['DepartmentName']?.toString(),
+      manager: json['ManagerName']?.toString(),
+      joinedDate: json['JoinedDate']?.toString(),
+      company : json['ComName']?.toString(),
+      profilephoto: json['ProfilePhoto']?.toString(),
     );
   }
 }

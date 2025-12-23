@@ -114,7 +114,7 @@ class Message {
             },
             child: const DefaultTextStyle(
               style: TextStyle(
-                color: Color(0xFF00A8A8), // ← change this to any color you want
+                color: Color(0xFF535252), // ← change this to any color you want
                 fontWeight: FontWeight.bold,
               ),
               child: Text('Cancel'),
@@ -126,7 +126,13 @@ class Message {
               Navigator.pop(context);
               callback(); // Pass the callback to handle the action
             },
-            child: const Text('Confirm'),
+            child: const DefaultTextStyle(
+              style: TextStyle(
+                color: Color(0xFF00A8A8), // ← change this to any color you want
+                fontWeight: FontWeight.bold,
+              ),
+            child: Text('Confirm'),
+            ),
           ),
         ],
       ),

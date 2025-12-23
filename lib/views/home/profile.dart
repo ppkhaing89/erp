@@ -46,24 +46,28 @@ class _ProfileState extends State<Profile> {
 
     if (jsonData is List) {
       setState(() {
-        dataList =
-            jsonData.map((item) => UserModel.fromJson(item)).toList(); // P
+  dataList = jsonData
+      .where((e) => e != null)
+      .map((e) => UserModel.fromJson(e))
+      .toList();
 
-        if (dataList.isNotEmpty) {
-          username = dataList[0].name;
-          dOB = dataList[0].dOB;
-          country = dataList[0].countryName;
-          email = dataList[0].email;
-          handPhone = dataList[0].mobilePh;
-          officePhone = dataList[0].officePh;
-          jobTitle = dataList[0].jobTitle;
-          department = dataList[0].department;
-          joinedDate = dataList[0].joinedDate;
-          company = dataList[0].company;
-          manager = dataList[0].manager;
-          profilephoto = dataList[0].profilephoto;
-        }
-      });
+  if (dataList.isNotEmpty) {
+    final user = dataList.first;
+
+    username = user.name ?? '';
+    dOB = user.dOB ?? '';
+    country = user.countryName ?? '';
+    email = user.email ?? '';
+    handPhone = user.mobilePh ?? '';
+    officePhone = user.officePh ?? '';
+    jobTitle = user.jobTitle ?? '';
+    department = user.department ?? '';
+    joinedDate = user.joinedDate ?? '';
+    company = user.company ?? '';
+    manager = user.manager ?? '';
+    profilephoto = user.profilephoto ?? '';
+  }
+});
     }
   }
 

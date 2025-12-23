@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:erp/views/home/modulelist.dart';
 import 'package:erp/views/hr/attendance/attendance.dart';
 import 'package:erp/views/hr/calendar/calendar.dart';
+import 'package:erp/views/hr/leave/leavelist.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -19,10 +20,10 @@ class HRMenuList extends StatefulWidget {
 
 IconData getIconFromName(String name) {
   const iconMap = {
-    'attendance': FontAwesomeIcons.clock,
+    'attendance': FontAwesomeIcons.alarmClock,
     'activities': FontAwesomeIcons.clipboardList,
     'calendar': Icons.calendar_month,
-    'faq': Icons.help_outline,
+    'leave': FontAwesomeIcons.suitcaseRolling,
     'px': Icons.language_outlined,
     'forms': Icons.description_outlined,
   };
@@ -32,6 +33,7 @@ IconData getIconFromName(String name) {
 final Map<String, Widget> routeMap = {
   'My Attendance': const Attendance(),
   'Calendar': const Calendar(),
+  'Leave Application': const Leavelist(),
 };
 
 class _ExpandableSection extends StatelessWidget {
